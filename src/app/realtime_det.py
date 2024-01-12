@@ -3,7 +3,7 @@ import logging
 import streamlit as st
 
 
-def main(logger: logging.Logger, **kwargs):
+def main(**kwargs):
     st.title("Video Anomaly Detection Dashboard")
     st.divider()
 
@@ -20,7 +20,7 @@ def main(logger: logging.Logger, **kwargs):
         )
         model_name = st.selectbox(
             "Model",
-            ["HL-Net", "Sultani's Net", "RTFM-Net", "SVM Baseline"],
+            ["HL-Net", "Sultani-Net", "SVM Baseline"],
             index=0,
         )
         threshold = st.slider("Threshold", min_value=0.0, max_value=1.0, value=0.5)

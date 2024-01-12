@@ -1,0 +1,30 @@
+dataset_cfg:
+  clip_len: 16
+  feature_dim: 4096
+  feature_name: c3d_rgb
+  max_seq_len: 32
+  num_workers: 4
+  sampling_rate: 2
+  streaming: false
+logging_cfg:
+  ckpt_interval_epochs: 2
+  exp_name: sultaninet-c3d
+  log_dir: logs/wandb/run-20240109_153725-agj43r4d/files
+  log_interval_steps: 10
+  test_interval_epochs: 2
+  test_metric: ap
+model_cfg:
+  dropout_prob: 0.6
+  loss:
+    lambda_smooth: 8.0e-05
+    lambda_sparsity: 8.0e-05
+  model_name: sultani_net
+optimizer_cfg:
+  lr: 0.001
+  weight_decay: 0.01
+training_cfg:
+  batch_size: 30
+  max_epochs: 50
+  resume_ckpt_type: null
+  resume_run_id: null
+  seed: 2233

@@ -1,0 +1,41 @@
+dataset_cfg:
+  clip_len: 32
+  feature_dim: 2048
+  feature_name: i3d_rgb
+  max_seq_len: 200
+  num_workers: 4
+  sampling_rate: 2
+  seperated_by_class: false
+  streaming: false
+logging_cfg:
+  ckpt_interval_epochs: 2
+  exp_name: hlnet-ctx_len_1-i3d
+  log_dir: logs/wandb/run-20240110_011012-h82uyom0/files
+  log_interval_steps: 10
+  test_interval_epochs: 2
+  test_metric: ap_offline
+model_cfg:
+  dropout_prob: 0.6
+  gamma: 1
+  hlc_ctx_len: 1
+  loss:
+    is_topk: true
+    lambda: 5
+    q: 16
+  model_name: pengwu_net
+  sigma: 1
+  threshold: 0.7
+optimizer_cfg:
+  lr: 0.001
+  lr_hlc: 0.0005
+  lr_scheduler:
+    gamma: 0.5
+    milestones:
+    - 30
+    - 40
+training_cfg:
+  batch_size: 128
+  max_epochs: 50
+  resume_ckpt_type: null
+  resume_run_id: h82uyom0
+  seed: 2333
