@@ -75,21 +75,10 @@ class ClipEmbeddingExtractor(nn.Module):
         return self.extract_feat(inputs)
 
 
-def calculate_mean_std_parameters(model):
-    parameters = [p.data for p in model.parameters()]
-    flattened_parameters = torch.cat([p.view(-1) for p in parameters])
-    mean_parameters = torch.mean(flattened_parameters).item()
-    std_parameters = torch.std(flattened_parameters).item()
-    return mean_parameters, std_parameters
-
-
 def build_model() -> nn.Module:
     model = ClipEmbeddingExtractor(backbone=backbone_cfg)
-
-    print(f"I3D (random): {calculate_mean_std_parameters(model)=}")
     checkpoint = torch.load(pretrained_path, map_location="cpu")["state_dict"]
     model.load_state_dict(checkpoint, strict=False)
-    print(f"I3D (ckpt): {calculate_mean_std_parameters(model)=}")
     model.eval()
     return model
 

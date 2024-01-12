@@ -53,7 +53,7 @@ def handle_upload(video_file: UploadedFile):
     # Video uploaded, load video to temp file
     upload_status = _load_into_temp(video_file)
     if upload_status:
-        _, vid_container, _ = st.columns([0.2, 0.6, 0.2])
+        _, vid_container, _ = st.columns([0.15, 0.7, 0.15])
         vid_container.video(temp_file.name)
     else:
         st.error("Failed to upload video")
@@ -97,7 +97,7 @@ def handle_download(video_url: str):
         download_status = _load_into_temp(video_url)
 
     if download_status:
-        _, vid_container, _ = st.columns([0.2, 0.6, 0.2])
+        _, vid_container, _ = st.columns([0.15, 0.7, 0.15])
         vid_container.video(temp_file.name)
     else:
         dl_placeholder.error("Failed to download video")
@@ -127,7 +127,8 @@ def main(**kwargs):
     # Model config
     with st.sidebar.expander("**Model Configuration**", expanded=True):
         feature_name = st.selectbox("Feature Extractor", ["I3D", "C3D", "Video Swin"], index=0)
-        model_name = st.selectbox("Model", ["HL-Net", "Sultani-Net", "SVM Baseline"], index=0)
+        model_name = st.selectbox("Model", ["Sultani-Net", "HL-Net", "SVM Baseline"], index=0)
+        ckpt_type = st.selectbox("Checkpoint Type", ["Best", "Last"], index=0)
         threshold = st.slider("Threshold", min_value=0.0, max_value=1.0, value=0.5)
 
     with st.sidebar.expander("**Miscellaneous**", expanded=True):
@@ -135,7 +136,7 @@ def main(**kwargs):
 
     device = init_device(enable_gpu)
     backbone_model, video_preprocessor, clip_preprocessor, sampling_strategy = load_backbone(feature_name, device)
-    detector_model = load_detector(model_name, feature_name, device)
+    detector_model = load_detector(model_name, feature_name, ckpt_type, device)
 
     # Upload video
     col1, col2 = st.columns([3, 1])
@@ -162,6 +163,8 @@ def main(**kwargs):
     metric_col3.markdown("**Resolution**")
     resolution_placeholder = metric_col3.markdown("0")
 
+    chart_placeholder = st.empty()
+
     if col2.button("Run Analysis", type="primary"):
         if st.session_state.temp_file.tell() == 0:
             st.toast("Please upload a video first.", icon="⚠️")
@@ -178,5 +181,5 @@ def main(**kwargs):
             anomaly_score_placeholder=anomaly_score_placeholder,
             frame_rate_placeholder=frame_rate_placeholder,
             resolution_placeholder=resolution_placeholder,
+            chart_placeholder=chart_placeholder,
         )
-        st.write("Running analysis")

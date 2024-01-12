@@ -50,7 +50,8 @@ def load_backbone(
     try:
         return _load_backbone(feature_name, device)
 
-    except Exception:
+    except Exception as e:
+        logger.error(e)
         st.error(f"Failed to load {feature_name} backbone")
         return None, None, None, None
 
@@ -58,21 +59,24 @@ def load_backbone(
 def load_detector(
     model_name: Literal["HL-Net", "Sultani-Net", "SVM Baseline"],
     feature_name: Literal["C3D", "I3D", "Video Swin"],
+    ckpt_type: Literal["Best", "Last"],
     device: torch.device,
 ) -> Optional[Union[PengWuNet, SultaniNet, BaselineNet]]:
     @st.cache_resource(show_spinner="Loading detector model...")
     def _load_detector(
         model_name: Literal["HL-Net", "Sultani-Net", "SVM Baseline"],
         feature_name: Literal["C3D", "I3D", "Video Swin"],
+        ckpt_type: Literal["Best", "Last"],
         device: torch.device,
     ) -> Union[PengWuNet, SultaniNet, BaselineNet]:
-        model = model_factory.build_model(model_name, feature_name).to(device)
-        logger.info(f"Initialized {model_name} ({feature_name}) detector - {device}")
+        model = model_factory.build_model(model_name, feature_name, ckpt_type).to(device)
+        logger.info(f"Initialized {model_name} ({feature_name=}, {ckpt_type=}) detector - {device}")
 
         return model
 
     try:
-        return _load_detector(model_name, feature_name, device)
-    except Exception:
-        st.error(f"Failed to load {model_name} ({feature_name}) detector")
+        return _load_detector(model_name, feature_name, ckpt_type, device)
+    except Exception as e:
+        logger.error(e)
+        st.error(f"Failed to load {model_name} ({feature_name=}, {ckpt_type=}) detector - {device}")
         return None
