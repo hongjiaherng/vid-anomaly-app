@@ -45,7 +45,7 @@ def predict_pipeline(
             clip_emb = clip_emb.unsqueeze(1)  # (B, 1, D) # PengWuNet expects (B, T, D) where T=1 for online inference
             clip_score = detector.predict(inputs=clip_emb, online=True)  # (B, T=1, 1)
             clip_score = torch.mean(clip_score).cpu().numpy()  # (1,)
-        return clip_score.item()
+        return round(clip_score.item(), 4)
 
     elif isinstance(detector, SultaniNet) or isinstance(detector, BaselineNet):
         clip_in = clip_dict["inputs"].squeeze(0).to(device)
@@ -53,7 +53,7 @@ def predict_pipeline(
             clip_emb = backbone(clip_in)  # (B, D)
             clip_score = detector.predict(inputs=clip_emb)  # (B, 1)
             clip_score = torch.mean(clip_score).cpu().numpy()
-        return clip_score.item()
+        return round(clip_score.item(), 4)
 
     else:
         raise ValueError(f"Unknown detector type {type(detector)}")

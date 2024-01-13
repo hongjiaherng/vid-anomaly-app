@@ -8,6 +8,7 @@ from typing import Union
 import av
 import cv2
 import numpy as np
+import pandas as pd
 import streamlit as st
 import torch
 from app.detection_runner import predict_pipeline
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 360
+FRAMES_TO_UPDATE_AT_ONCE = 8
 
 
 class BatchedFramesProcessor(VideoProcessorBase):
@@ -108,7 +110,8 @@ def configure_settings():
 
 
 def main(**kwargs):
-    st.title("Video Anomaly Detection Dashboard")
+    st.header("Video Anomaly Detection Dashboard")
+    st.markdown("Run real-time video anomaly detection on your webcam.")
     st.divider()
 
     st.sidebar.divider()
@@ -144,8 +147,14 @@ def main(**kwargs):
             device=device,
         )
 
+    st.divider()
+
     if webrtc_ctx.state.playing:
-        chart_placeholder = st.line_chart()
+        frame_count = 0
+
+        st.markdown("#### Result")
+        st.write("\n")
+
         while True:
             if webrtc_ctx.video_processor is None:  # if stopped it will be None
                 break
@@ -153,8 +162,36 @@ def main(**kwargs):
             if score is not None:
                 logger.info(f"Score: {score=}")
 
-                for _ in range(sampling_strategy["sampling_rate"] * sampling_strategy["clip_len"]):
-                    chart_placeholder.add_rows([score])
-                    time.sleep(0.001)  # Sleep to make the chart smoother
+                for frame_start in range(
+                    frame_count,
+                    frame_count + sampling_strategy["sampling_rate"] * sampling_strategy["clip_len"],
+                    FRAMES_TO_UPDATE_AT_ONCE,
+                ):
+                    # Update 8 frames at a time
+                    if frame_start == 0:
+                        chart_placeholder = st.line_chart(
+                            data=pd.DataFrame(
+                                {
+                                    "frame": np.arange(frame_start, frame_start + FRAMES_TO_UPDATE_AT_ONCE, dtype=int),
+                                    "anomaly score": np.array(score, dtype=np.float32).repeat(FRAMES_TO_UPDATE_AT_ONCE),
+                                    "threshold": np.array(threshold, dtype=np.float32).repeat(FRAMES_TO_UPDATE_AT_ONCE),
+                                },
+                            ),
+                            x="frame",
+                            y=["anomaly score", "threshold"],
+                            color=["#0000FF", "#FF0000"],
+                        )
+                    else:
+                        chart_placeholder.add_rows(
+                            pd.DataFrame(
+                                {
+                                    "frame": np.arange(frame_start, frame_start + FRAMES_TO_UPDATE_AT_ONCE, dtype=int),
+                                    "anomaly score": np.array(score, dtype=np.float32).repeat(FRAMES_TO_UPDATE_AT_ONCE),
+                                    "threshold": np.array(threshold, dtype=np.float32).repeat(FRAMES_TO_UPDATE_AT_ONCE),
+                                },
+                            )
+                        )
+                    frame_count += FRAMES_TO_UPDATE_AT_ONCE
+                    time.sleep(0.3)  # Sleep to make the chart smoother
             else:
-                time.sleep(0.1)  # Sleep to avoid busy waiting
+                time.sleep(0.3)  # Sleep to avoid busy waiting
