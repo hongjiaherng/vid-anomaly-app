@@ -115,7 +115,6 @@ def init_device(enable_gpu: bool) -> torch.device:
 
 
 def main(**kwargs):
-    logger.info("New Run")
     init_session_state()
 
     st.title("Video Anomaly Detection Dashboard")

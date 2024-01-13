@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 def load_backbone(
-    feature_name: Literal["C3D", "I3D", "Video Swin"], device: torch.device
+    feature_name: Literal["C3D", "I3D", "Video Swin"],
+    device: torch.device,
+    crop_type: Literal["10-crop", "5-crop", "center"] = "5-crop",
 ) -> Tuple[
     Optional[torch.nn.Module],
     Optional[torch.nn.Module],
@@ -38,7 +40,7 @@ def load_backbone(
 
         backbone = backbone_module.build_model().to(device)
         preprocess_video = backbone_module.build_video2clips_pipeline(batch_size=1, io_backend="local", id_key="id", path_key="path", num_clips=-1)
-        preprocess_clip = backbone_module.build_clip_pipeline(crop_type="5-crop")
+        preprocess_clip = backbone_module.build_clip_pipeline(crop_type=crop_type)
         sampling_strategy = {
             "clip_len": backbone_module.preprocessing_cfg["clip_len"],
             "sampling_rate": backbone_module.preprocessing_cfg["sampling_rate"],

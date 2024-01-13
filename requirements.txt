@@ -1,2 +1,4 @@
 streamlit==1.30.0
 yt-dlp==2023.12.30
+streamlit-webrtc==0.47.1
+opencv-python-headless==4.9.0.80
