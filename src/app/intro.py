@@ -47,15 +47,11 @@ def main(**kwargs):
     tab1, tab2 = st.tabs(["PR Curve", "ROC Curve"])
     with tab1:
         _, pr, _ = st.columns([0.15, 0.7, 0.15])
-        pr.image(
-            "https://github.com/hongjiaherng/inappropriate-video-detection/blob/main/anomaly-detection/images/pr-curves-all-models.png?raw=true",
-        )
+        pr.image("https://github.com/hongjiaherng/vid-anomaly-app/blob/main/assets/pr-curves-all-models.png?raw=true")
 
     with tab2:
         _, roc, _ = st.columns([0.15, 0.7, 0.15])
-        roc.image(
-            "https://github.com/hongjiaherng/inappropriate-video-detection/blob/main/anomaly-detection/images/roc-curves-all-models.png?raw=true",
-        )
+        roc.image("https://github.com/hongjiaherng/vid-anomaly-app/blob/main/assets/roc-curves-all-models.png?raw=true")
 
     st.subheader("How to Use This Application")
     st.write(
