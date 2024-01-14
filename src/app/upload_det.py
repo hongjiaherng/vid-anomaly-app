@@ -17,6 +17,8 @@ from app.utils.model_builder import load_backbone, load_detector, predict_pipeli
 
 logger = logging.getLogger(__name__)
 
+DISPLAY_FRAME_INTERVAL = 8  # Display a frame every 4 frames
+
 
 def run_detection(
     video_path: str,
@@ -54,10 +56,11 @@ def run_detection(
             detector=detector_model,
             device=device,
         )
-        clip_score = round(clip_score, 4)
         overall_score += clip_score
 
-        for frame_i in range(sampling_strategy["sampling_rate"] * sampling_strategy["clip_len"]):
+        for frame_i in range(0, sampling_strategy["sampling_rate"] * sampling_strategy["clip_len"], DISPLAY_FRAME_INTERVAL):
+            if DISPLAY_FRAME_INTERVAL != 1:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, clip_i * sampling_strategy["sampling_rate"] * sampling_strategy["clip_len"] + frame_i)
             ret, frame = cap.read()
             if not ret:
                 break
@@ -89,7 +92,10 @@ def run_detection(
 
             progress_bar.progress((clip_i * sampling_strategy["sampling_rate"] * sampling_strategy["clip_len"] + frame_i + 1) / total_frames)
             status_text.caption(f"{clip_i * sampling_strategy['sampling_rate'] * sampling_strategy['clip_len'] + frame_i + 1}/{total_frames}")
-            time.sleep(0.01)
+
+    # Just in case the last frame is not displayed
+    progress_bar.progress(1.0)
+    status_text.caption(f"{total_frames}/{total_frames}")
 
     overall_score /= clip_i + 1
     overall_score = round(overall_score, 4)

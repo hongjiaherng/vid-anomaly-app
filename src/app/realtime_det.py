@@ -132,7 +132,7 @@ def main(**kwargs):
                 break
             score = webrtc_ctx.video_processor.get_latest_score()
             if score is not None:
-                score = round(score, 4)  # rounding off for display purpose
+                # score = round(score, 4)  # rounding off for display purpose
                 logger.info(f"Score: {score=}")
 
                 for frame_start in range(
@@ -145,10 +145,10 @@ def main(**kwargs):
                         chart_placeholder = st.line_chart(
                             data=pd.DataFrame(
                                 {
-                                    "frame": np.arange(frame_start, frame_start + FRAMES_TO_UPDATE_AT_ONCE, dtype=int),
-                                    "anomaly score": np.array(score, dtype=np.float32).repeat(FRAMES_TO_UPDATE_AT_ONCE),
-                                    "threshold": np.array(threshold, dtype=np.float32).repeat(FRAMES_TO_UPDATE_AT_ONCE),
-                                },
+                                    "frame": np.array([frame_start], dtype=int),
+                                    "anomaly score": np.array([score], dtype=np.float32),
+                                    "threshold": np.array([threshold], dtype=np.float32),
+                                }
                             ),
                             x="frame",
                             y=["anomaly score", "threshold"],
@@ -157,10 +157,10 @@ def main(**kwargs):
                         chart_placeholder.add_rows(
                             pd.DataFrame(
                                 {
-                                    "frame": np.arange(frame_start, frame_start + FRAMES_TO_UPDATE_AT_ONCE, dtype=int),
-                                    "anomaly score": np.array(score, dtype=np.float32).repeat(FRAMES_TO_UPDATE_AT_ONCE),
-                                    "threshold": np.array(threshold, dtype=np.float32).repeat(FRAMES_TO_UPDATE_AT_ONCE),
-                                },
+                                    "frame": np.array([frame_start], dtype=int),
+                                    "anomaly score": np.array([score], dtype=np.float32),
+                                    "threshold": np.array([threshold], dtype=np.float32),
+                                }
                             )
                         )
                     frame_count += FRAMES_TO_UPDATE_AT_ONCE
