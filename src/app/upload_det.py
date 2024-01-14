@@ -1,184 +1,197 @@
-import atexit
 import logging
-import tempfile
-import os
+import time
+from typing import Dict, Union
 
-import torch
-import yt_dlp as youtube_dl
+import cv2
+import numpy as np
+import pandas as pd
 import streamlit as st
-from streamlit.runtime.uploaded_file_manager import UploadedFile
-
-from app.model_builder import load_backbone, load_detector
-from app.detection_runner import run_detection
+import torch
+from streamlit.delta_generator import DeltaGenerator
+from anomaly_detector.models.pengwu_net import PengWuNet
+from anomaly_detector.models.sultani_net import SultaniNet
+from anomaly_detector.models.svm_baseline import BaselineNet
+from app.utils.common import configure_settings_sidebar, init_device
+from app.utils.file_handler import handle_download, handle_upload, init_tempfile_in_session_state
+from app.utils.model_builder import load_backbone, load_detector, predict_pipeline
 
 logger = logging.getLogger(__name__)
 
 
-def cleanup_tempfile(temp_file: tempfile.NamedTemporaryFile):
-    logger.info(f"Clean up {temp_file.name=}")
-    temp_file.close()
-    os.unlink(temp_file.name)
+def run_detection(
+    video_path: str,
+    video_name: str,
+    video_preprocessor: torch.nn.Module,
+    clip_preprocessor: torch.nn.Module,
+    sampling_strategy: Dict[str, int],
+    backbone_model: torch.nn.Module,
+    detector_model: Union[PengWuNet, SultaniNet, BaselineNet],
+    device: torch.device,
+    threshold: float,
+    frame_placeholder: DeltaGenerator,
+    progress_bar: DeltaGenerator,
+    status_text: DeltaGenerator,
+    chart_placeholder: DeltaGenerator,
+    summary_placeholder: DeltaGenerator,
+):
+    logger.info(f"Running detection on {video_path=}")
 
+    # Prepare video
+    clip_iter = video_preprocessor({"path": video_path, "id": video_path})
+    cap = cv2.VideoCapture(video_path)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    duration = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS))
+    frame_rate = cap.get(cv2.CAP_PROP_FPS)
+    overall_score = 0.0
 
-def init_session_state():
-    if "temp_file" not in st.session_state:
-        st.session_state.temp_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-        atexit.register(cleanup_tempfile, st.session_state.temp_file)
-        logger.info(f"Init global {st.session_state.temp_file.name=}")
+    for clip_i, clip_dict in enumerate(clip_iter):  # clip_dict: {"inputs": (crop, T, C, H, W), ...}
+        clip_dict = clip_preprocessor(clip_dict)
+        clip_score = predict_pipeline(
+            clip_dict=clip_dict,
+            backbone=backbone_model,
+            detector=detector_model,
+            device=device,
+        )
+        clip_score = round(clip_score, 4)
+        overall_score += clip_score
 
+        for frame_i in range(sampling_strategy["sampling_rate"] * sampling_strategy["clip_len"]):
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-def handle_upload(video_file: UploadedFile):
-    temp_file = st.session_state.temp_file
+            frame_placeholder.image(frame, channels="BGR", caption=video_name, use_column_width=True)
 
-    @st.cache_data(show_spinner=False)
-    def _load_into_temp(video_file: UploadedFile):
-        try:
-            temp_file.seek(0)  # Reset file pointer (in case there's prevously uploaded data in there)
-            temp_file.write(video_file.read())
-            logger.info(f"Loaded {video_file.name=} to {temp_file.name=}")
-            return True
+            if clip_i == 0 and frame_i == 0:
+                chart_placeholder.line_chart(
+                    data=pd.DataFrame(
+                        {
+                            "frame": np.array([frame_i], dtype=int),
+                            "score": np.array([clip_score], dtype=np.float32),
+                            "threshold": np.array([threshold], dtype=np.float32),
+                        },
+                    ),
+                    x="frame",
+                    y=["score", "threshold"],
+                )
+            else:
+                chart_placeholder.add_rows(
+                    pd.DataFrame(
+                        {
+                            "frame": np.array([clip_i * sampling_strategy["sampling_rate"] * sampling_strategy["clip_len"] + frame_i], dtype=int),
+                            "score": np.array([clip_score], dtype=np.float32),
+                            "threshold": np.array([threshold], dtype=np.float32),
+                        },
+                    )
+                )
 
-        except Exception:
-            logger.error(f"Failed to load {video_file.name=} to {temp_file.name=}")
-            return False
+            progress_bar.progress((clip_i * sampling_strategy["sampling_rate"] * sampling_strategy["clip_len"] + frame_i + 1) / total_frames)
+            status_text.caption(f"{clip_i * sampling_strategy['sampling_rate'] * sampling_strategy['clip_len'] + frame_i + 1}/{total_frames}")
+            time.sleep(0.01)
 
-    logger.info(f"Handling upload of {video_file.name if video_file else None}")
+    overall_score /= clip_i + 1
+    overall_score = round(overall_score, 4)
+    # Determine the color of the overall score based on its value
+    score_color = "green" if overall_score < threshold else "red"
 
-    # No video uploaded, clear temp file content, ensure the temp file is empty
-    if video_file is None:
-        temp_file.truncate(0)  # Clear file content, in case there's prevously uploaded file content in there
-        logger.info(f"Cleared {temp_file.name=}")
-        return
+    # Display summary
+    summary_placeholder.markdown(
+        f"""
+        <hr>
 
-    # Video uploaded, load video to temp file
-    upload_status = _load_into_temp(video_file)
-    if upload_status:
-        _, vid_container, _ = st.columns([0.15, 0.7, 0.15])
-        vid_container.video(temp_file.name)
-    else:
-        st.error("Failed to upload video")
+        #### Summary
+        Overall anomaly score: <span style='color:{score_color}'>{overall_score}</span>
 
+        <br>
 
-def handle_download(video_url: str):
-    temp_file = st.session_state.temp_file
+        ##### Video Information
 
-    @st.cache_data(show_spinner=False)
-    def _load_into_temp(video_url: str):
-        try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                ydl_opts = {
-                    "format": "mp4",
-                    "outtmpl": f"{temp_dir}/%(id)s.%(ext)s",
-                }
-                with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([video_url])
-                    info_dict = ydl.extract_info(video_url, download=False)
-                    video_id, video_ext = info_dict.get("id", None), info_dict.get("ext", None)
-                    video_path = f"{temp_dir}/{video_id}.{video_ext}"
+        <table>
+            <tr><td><strong>Video name</strong></td><td>{video_name}</td></tr>
+            <tr><td><strong>Video duration</strong></td><td>{duration} s</td></tr>
+            <tr><td><strong>Frame rate</strong></td><td>{frame_rate} fps</td></tr>
+            <tr><td><strong>Number of frames</strong></td><td>{clip_i * sampling_strategy["sampling_rate"] * sampling_strategy["clip_len"] + frame_i + 1} frames</td></tr>
+            <tr><td><strong>Resolution</strong></td><td>{width}x{height}</td></tr>
+        </table>
+        <br><br>
 
-                    temp_file.seek(0)  # Reset file pointer (in case there's prevously uploaded data in there)
-                    temp_file.write(open(video_path, "rb").read())
-
-            logger.info(f"Downloaded {video_url=} to {temp_file.name=}")
-            return True
-
-        except Exception:
-            logger.error(f"Failed to download {video_url=}")
-            return False
-
-    logger.info(f"Handling download {video_url=}")
-    if video_url == "" or len(video_url) == 0:
-        temp_file.truncate(0)  # Clear file content, in case there's prevously uploaded file content in there
-        logger.info(f"Cleared {temp_file.name=}")
-        return
-
-    dl_placeholder = st.empty()
-    with dl_placeholder, st.spinner("Downloading ..."):
-        download_status = _load_into_temp(video_url)
-
-    if download_status:
-        _, vid_container, _ = st.columns([0.15, 0.7, 0.15])
-        vid_container.video(temp_file.name)
-    else:
-        dl_placeholder.error("Failed to download video")
-
-
-def init_device(enable_gpu: bool) -> torch.device:
-    if not enable_gpu:
-        return torch.device("cpu")
-
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    else:
-        st.toast("GPU is not available, reverting back to CPU", icon="⚠️")
-        return torch.device("cpu")
+        ##### Processing Information
+        <table>
+            <tr><td><strong>Sampling rate</strong></td><td>{sampling_strategy["sampling_rate"]}</td></tr>
+            <tr><td><strong>Clip length</strong></td><td>{sampling_strategy["clip_len"]} frames</td></tr>
+            <tr><td><strong>Number of clips</strong></td><td>{clip_i + 1} clips</td></tr>
+        </table>
+        """,
+        unsafe_allow_html=True,
+    )
+    cap.release()
 
 
 def main(**kwargs):
-    init_session_state()
-
-    st.title("Video Anomaly Detection Dashboard")
+    st.header("Video Anomaly Detection Dashboard")
+    st.markdown("Run anomaly detection on your video. You can either upload a video or provide a YouTube URL.")
     st.divider()
 
-    st.sidebar.divider()
-    st.sidebar.markdown("## Settings")
-
-    # Model config
-    with st.sidebar.expander("**Model Configuration**", expanded=True):
-        feature_name = st.selectbox("Feature Extractor", ["I3D", "C3D", "Video Swin"], index=0)
-        model_name = st.selectbox("Model", ["Sultani-Net", "HL-Net", "SVM Baseline"], index=0)
-        ckpt_type = st.selectbox("Checkpoint Type", ["Best", "Last"], index=0)
-        threshold = st.slider("Threshold", min_value=0.0, max_value=1.0, value=0.5)
-
-    with st.sidebar.expander("**Miscellaneous**", expanded=True):
-        enable_gpu = st.toggle("Enable GPU", value=True)
-
+    init_tempfile_in_session_state()
+    model_name, feature_name, ckpt_type, threshold, enable_gpu = configure_settings_sidebar()
     device = init_device(enable_gpu)
     backbone_model, video_preprocessor, clip_preprocessor, sampling_strategy = load_backbone(feature_name, device)
     detector_model = load_detector(model_name, feature_name, ckpt_type, device)
 
-    # Upload video
     col1, col2 = st.columns([3, 1])
+
+    # Upload video
     with col1, st.expander("**Video Upload**", expanded=True):
         video_source = st.radio("Video Source", ["Upload", "YouTube"], index=0, key="video_source", horizontal=True)
 
         if video_source == "Upload":
             video_file = st.file_uploader("Upload video", type=["mp4", "avi", "mov", "mkv"])
-            handle_upload(video_file)
+            video_name = handle_upload(video_file)
 
         else:
             video_url = st.text_input("YouTube URL", placeholder="https://www.youtube.com/watch?v=<video_id>")
-            handle_download(video_url)
+            video_name = handle_download(video_url)
 
-    frame_placeholder = st.empty()
-    metric_col1, metric_col2, metric_col3 = st.columns(3)
+    run_btn = col2.button("Run Analysis", type="primary")
 
-    metric_col1.markdown("**Anomaly Score**")
-    anomaly_score_placeholder = metric_col1.markdown("0")
+    st.divider()
 
-    metric_col2.markdown("**Frame Rate**")
-    frame_rate_placeholder = metric_col2.markdown("0")
-
-    metric_col3.markdown("**Resolution**")
-    resolution_placeholder = metric_col3.markdown("0")
-
-    chart_placeholder = st.empty()
-
-    if col2.button("Run Analysis", type="primary"):
+    if run_btn:
         if st.session_state.temp_file.tell() == 0:
             st.toast("Please upload a video first.", icon="⚠️")
             return
+
+        _, frame_container, _ = st.columns([0.15, 0.7, 0.15])
+        frame_placeholder = frame_container.empty()
+
+        progress_col1, progress_col2 = st.columns([0.9, 0.1])
+        progress_bar = progress_col1.progress(0)
+        status_text = progress_col2.empty()
+        # st.write("\n")
+        st.divider()
+
+        st.markdown("#### Result")
+
+        st.write("\n")
+
+        chart_placeholder = st.empty()
+        summary_placeholder = st.empty()
+
         run_detection(
             video_path=st.session_state.temp_file.name,
+            video_name=video_name,
             video_preprocessor=video_preprocessor,
             clip_preprocessor=clip_preprocessor,
             sampling_strategy=sampling_strategy,
             backbone_model=backbone_model,
             detector_model=detector_model,
             device=device,
+            threshold=threshold,
             frame_placeholder=frame_placeholder,
-            anomaly_score_placeholder=anomaly_score_placeholder,
-            frame_rate_placeholder=frame_rate_placeholder,
-            resolution_placeholder=resolution_placeholder,
+            progress_bar=progress_bar,
+            status_text=status_text,
             chart_placeholder=chart_placeholder,
+            summary_placeholder=summary_placeholder,
         )

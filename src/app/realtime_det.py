@@ -11,8 +11,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import torch
-from app.detection_runner import predict_pipeline
-from app.model_builder import load_backbone, load_detector
+from app.utils.model_builder import load_backbone, load_detector, predict_pipeline
+from app.utils.common import init_device, configure_settings_sidebar
 from streamlit_webrtc import RTCConfiguration, VideoHTMLAttributes, VideoProcessorBase, webrtc_streamer
 
 logger = logging.getLogger(__name__)
@@ -85,40 +85,12 @@ class BatchedFramesProcessor(VideoProcessorBase):
             return None
 
 
-def init_device(enable_gpu: bool) -> torch.device:
-    if not enable_gpu:
-        return torch.device("cpu")
-
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    else:
-        st.toast("GPU is not available, reverting back to CPU", icon="⚠️")
-        return torch.device("cpu")
-
-
-def configure_settings():
-    # Model config
-    with st.sidebar.expander("**Model Configuration**", expanded=True):
-        feature_name = st.selectbox("Feature Extractor", ["I3D", "C3D", "Video Swin"], index=0)
-        model_name = st.selectbox("Model", ["Sultani-Net", "HL-Net", "SVM Baseline"], index=0)
-        ckpt_type = st.selectbox("Checkpoint Type", ["Best", "Last"], index=0)
-        threshold = st.slider("Threshold", min_value=0.0, max_value=1.0, value=0.5)
-
-    with st.sidebar.expander("**Miscellaneous**", expanded=True):
-        enable_gpu = st.toggle("Enable GPU", value=True)
-    return feature_name, model_name, ckpt_type, threshold, enable_gpu
-
-
 def main(**kwargs):
     st.header("Video Anomaly Detection Dashboard")
     st.markdown("Run real-time video anomaly detection on your webcam.")
     st.divider()
 
-    st.sidebar.divider()
-    st.sidebar.markdown("## Settings")
-
-    feature_name, model_name, ckpt_type, threshold, enable_gpu = configure_settings()
-
+    model_name, feature_name, ckpt_type, threshold, enable_gpu = configure_settings_sidebar()
     device = init_device(enable_gpu)
     backbone_model, _, clip_preprocessor, sampling_strategy = load_backbone(feature_name, device, crop_type="center")
     detector_model = load_detector(model_name, feature_name, ckpt_type, device)
@@ -137,7 +109,7 @@ def main(**kwargs):
         async_processing=True,
     )
 
-    if webrtc_ctx.video_processor:
+    if webrtc_ctx.video_processor:  # IMPORTANT: set_attrs_on_render() must be called after webrtc_ctx.video_processor is initialized
         webrtc_ctx.video_processor.set_attrs_on_render(
             sampling_rate=sampling_strategy["sampling_rate"],
             clip_len=sampling_strategy["clip_len"],
@@ -160,6 +132,7 @@ def main(**kwargs):
                 break
             score = webrtc_ctx.video_processor.get_latest_score()
             if score is not None:
+                score = round(score, 4)  # rounding off for display purpose
                 logger.info(f"Score: {score=}")
 
                 for frame_start in range(
@@ -179,7 +152,6 @@ def main(**kwargs):
                             ),
                             x="frame",
                             y=["anomaly score", "threshold"],
-                            color=["#0000FF", "#FF0000"],
                         )
                     else:
                         chart_placeholder.add_rows(
