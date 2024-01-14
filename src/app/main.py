@@ -37,6 +37,7 @@ def main():
         "Detection with Webcam": realtime_det_func,
     }
 
+    st.set_page_config(page_title="Dashboard - Video Anomaly Detection")
     page_name = st.sidebar.selectbox("Navigate Page", list(pname2func.keys()))
     pname2func[page_name]()
 
