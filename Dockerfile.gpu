@@ -1,0 +1,47 @@
+# Pytorch version
+ARG PYTORCH="2.1.2"
+ARG CUDA="11.8"
+ARG CUDNN="8"
+
+FROM pytorch/pytorch:${PYTORCH}-cuda${CUDA}-cudnn${CUDNN}-runtime
+
+# Install os wide dependencies
+RUN apt-get update && apt-get install -y unzip ffmpeg libsm6 libxext6 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy model weights and configs
+COPY pretrained pretrained
+COPY configs configs
+COPY assets assets
+
+# Copy requirements.txt
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install -r requirements.txt
+
+# Install mmaction2
+ARG OPENMIM="0.3.9" MMENGINE="0.10.3" MMCV="2.1.0" MMACTION2="1.2.0"
+RUN pip install "openmim==${OPENMIM}" \
+    && mim install mmengine==${MMENGINE} mmcv==${MMCV}
+RUN pip install mmaction2==${MMACTION2}
+
+# Fix the missing "drn" folder in mmaction2: https://github.com/open-mmlab/mmaction2/issues/2714
+RUN unzip assets/drn.zip && rm assets/drn.zip
+RUN DRN_PATH="$(pip show mmaction2 | grep -i "Location" | awk -F 'Location: ' 'NF>1{print $2}' | tr -d '\r')" \
+    && DRN_PATH="${DRN_PATH}/mmaction/models/localizers" \
+    && mv drn ${DRN_PATH} \
+    && rm -rf drn
+
+# Copy the rest of the files
+COPY . .
+
+# Expose port
+EXPOSE 8501
+
+# Run the app
+ENTRYPOINT [ "streamlit", "run", "src/app/main.py", "--server.port=8501", "--server.address=0.0.0.0" ]

@@ -1,16 +1,9 @@
 streamlit==1.30.0
 yt-dlp==2023.12.30
 streamlit-webrtc==0.47.1
-opencv-contrib-python==4.8.1.78
+opencv-python-headless==4.8.1.78
 numpy==1.26.2
 pandas==2.1.4
 PyYAML==6.0.1
 decord==0.6.0
-
-# For streamlit hosting (CPU only)
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.1.2
 torchvision==0.16.2
-torchaudio==2.1.2
-
-# MMAction2 should be downloaded into directory in order to host successfully

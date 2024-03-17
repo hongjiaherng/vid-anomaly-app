@@ -1,0 +1,22 @@
+services:
+  vidanomaly-app-gpu:
+    container_name: vidanomaly-app-gpu
+    build:
+      context: .
+      dockerfile: ./Dockerfile.gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    ports:
+      - "8501:8501"
+  vidanomaly-app-cpu:
+    container_name: vidanomaly-app-cpu
+    build:
+      context: .
+      dockerfile: ./Dockerfile.cpu
+    ports:
+      - "8501:8501"
