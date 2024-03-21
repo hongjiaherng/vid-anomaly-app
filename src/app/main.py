@@ -3,6 +3,7 @@ import sys
 import os
 
 import streamlit as st
+from dotenv import load_dotenv
 
 
 ROOT_PATH = os.path.abspath(os.path.join(__file__, "../../../"))
@@ -30,6 +31,7 @@ def import_module():
 
 
 def main():
+    load_dotenv()
     import_module()
     pname2func = {
         "Intro": intro_func,

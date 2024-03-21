@@ -11,8 +11,9 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import torch
+from app.utils.common import configure_settings_sidebar, init_device
 from app.utils.model_builder import load_backbone, load_detector, predict_pipeline
-from app.utils.common import init_device, configure_settings_sidebar
+from app.utils.turn import get_ice_servers
 from streamlit_webrtc import RTCConfiguration, VideoHTMLAttributes, VideoProcessorBase, webrtc_streamer
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ def main(**kwargs):
     webrtc_ctx = webrtc_streamer(
         key="webcam",
         video_transformer_factory=BatchedFramesProcessor,
-        rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
+        rtc_configuration=RTCConfiguration({"iceServers": get_ice_servers()}),
         video_html_attrs=VideoHTMLAttributes(autoPlay=True, controls=True, style={"width": "100%"}, muted=True),
         media_stream_constraints={
             "video": {
