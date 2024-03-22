@@ -9,16 +9,16 @@ docker-compose
 ```bash
 docker compose up vid-anomaly-app-gpu # if you have a GPU
 docker compose up vid-anomaly-app-cpu # if you don't have a GPU
+
+docker compose stop # to stop the container
 ```
 
 ```bash
-docker build -f Dockerfile.gpu -t vid-anomaly-app-gpu .
-docker tag vid-anomaly-app-gpu asia-southeast1-docker.pkg.dev/vid-anomaly-app/vid-anomaly-app/vid-anomaly-app-gpu # docker tag SOURCE-IMAGE LOCATION-docker.pkg.dev/PROJECT-ID/REPOSITORY/IMAGE:TAG
-docker push asia-southeast1-docker.pkg.dev/vid-anomaly-app/vid-anomaly-app/vid-anomaly-app-gpu
-```
+docker build -f Dockerfile.gpu -t vadapp-gpu .
+docker tag vadapp-gpu jiaherng/vadapp:latest-gpu
+docker push jiaherng/vadapp:latest-gpu
 
-```bash
-docker build -f Dockerfile.cpu -t vid-anomaly-app-cpu .
-docker tag vid-anomaly-app-cpu asia-southeast1-docker.pkg.dev/vid-anomaly-app/vid-anomaly-app/vid-anomaly-app-cpu # docker tag SOURCE-IMAGE LOCATION-docker.pkg.dev/PROJECT-ID/REPOSITORY/IMAGE:TAG
-docker push asia-southeast1-docker.pkg.dev/vid-anomaly-app/vid-anomaly-app/vid-anomaly-app-cpu
+docker build -f Dockerfile.cpu -t vadapp-cpu .
+docker tag vadapp-cpu jiaherng/vadapp:latest-cpu
+docker push jiaherng/vadapp:latest-cpu
 ```

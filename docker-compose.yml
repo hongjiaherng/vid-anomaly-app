@@ -1,6 +1,6 @@
 services:
-  vid-anomaly-app-gpu:
-    container_name: vid-anomaly-app-gpu
+  vadapp-gpu:
+    container_name: vadapp-gpu
     build:
       context: .
       dockerfile: ./Dockerfile.gpu
@@ -13,10 +13,14 @@ services:
               capabilities: [ gpu ]
     ports:
       - "8501:8501"
-  vid-anomaly-app-cpu:
-    container_name: vid-anomaly-app-cpu
+    env_file:
+      - .env
+  vadapp-cpu:
+    container_name: vadapp-cpu
     build:
       context: .
       dockerfile: ./Dockerfile.cpu
     ports:
       - "8501:8501"
+    env_file:
+      - .env
